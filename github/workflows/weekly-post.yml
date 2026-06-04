@@ -1,0 +1,33 @@
+name: Biweekly post
+
+on:
+  schedule:
+    - cron: '0 13 * * 4'
+  workflow_dispatch:
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Check bi-weekly trigger
+        run: |
+          PARITY=$(( $(date +%s) / 604800 % 2 ))
+          if [ "$PARITY" -eq 0 ]; then
+            echo "RUN_BOT=true" >> $GITHUB_ENV
+          else
+            echo "RUN_BOT=false" >> $GITHUB_ENV
+          fi
+      - name: Random delay (0-21 min)
+        if: env.RUN_BOT == 'true'
+        run: sleep $(( RANDOM % 1260 ))
+      - name: Run bot
+        if: env.RUN_BOT == 'true'
+        run: node bot.mjs
+        env:
+          NOSTR_SEC: ${{ secrets.NOSTR_SEC }}

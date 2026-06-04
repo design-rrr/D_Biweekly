@@ -1,0 +1,15 @@
+{
+  "name": "d-biweekly-bot",
+  "version": "1.0.0",
+  "description": "Biweekly 'What creative ideas have you been rambling on?' bot for Stacker News ~design",
+  "type": "module",
+  "main": "bot.mjs",
+  "scripts": {
+    "post": "node bot.mjs",
+    "start": "node bot.mjs"
+  },
+  "dependencies": {
+    "nostr-tools": "^2.10.0",
+    "dotenv": "^16.4.0"
+  }
+}
