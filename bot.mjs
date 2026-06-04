@@ -22,7 +22,7 @@ const IMAGES = [
 ]
 
 const DRY_RUN = process.argv.includes('--dry-run')
-const FIRST_POST_ID = 1291247
+const FIRST_POST_ID = 1502452
 
 if (!NOSTR_SEC) {
   console.error('NOSTR_SEC environment variable is required')
