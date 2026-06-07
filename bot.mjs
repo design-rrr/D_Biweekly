@@ -12,7 +12,7 @@ const IMAGES = [
   '![True happiness is not attained through self-gratification, but through fidelity to a worthy purpose. - Helen Keller](https://m.stacker.news/119126)',
   '![MaindBlowing](https://m.stacker.news/97749)',
   '![The Creative Adult is the Child Who Survived - Ursula Le Guin](https://m.stacker.news/116903)',
-  `![I don't care that they stole my idea . . I care that they don't have any of their own - Nikola Tesla](https://m.stacker.news/114266)`,
+  `![I don't care that they stole my idea. I care that they don't have any of their own - Nikola Tesla](https://m.stacker.news/114266)`,
   '![The best way to predict your future is to create it. - Abraham Lincoln](https://m.stacker.news/112173)',
   '![Creativity is Intelligence Having Fun - Albert Einstein](https://m.stacker.news/99470)',
   '![Tune on Awe, Find the Creative Vocabulary to Express your Work - Rick Rubin](https://m.stacker.news/103510)',
