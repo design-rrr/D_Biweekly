@@ -22,7 +22,7 @@ const IMAGES = [
 ]
 
 const DRY_RUN = process.argv.includes('--dry-run')
-const FIRST_POST_ID = 1502452
+const FIRST_POST_ID = 1291247
 
 if (!NOSTR_SEC) {
   console.error('NOSTR_SEC environment variable is required')
@@ -247,7 +247,33 @@ async function fetchParticipants (itemId) {
   return { userNames }
 }
 
-// --- Step 8: Create the post ---
+// --- Step 8: Pin/unpin in territory ---
+
+async function fetchPins (subName) {
+  const body = await gql(
+    `query items($sub: String) {
+      items(sub: $sub, limit: 1) {
+        pins { id, title }
+      }
+    }`,
+    { sub: subName },
+    'items'
+  )
+  return body?.data?.items?.pins || []
+}
+
+async function togglePin (itemId) {
+  const body = await gql(
+    'mutation pinItem($id: ID!) { pinItem(id: $id) { id } }',
+    { id: itemId },
+    'pinItem'
+  )
+  if (body?.errors) {
+    throw new Error('Pin toggle failed: ' + JSON.stringify(body.errors))
+  }
+}
+
+// --- Step 9: Create the post ---
 
 async function createPost (title, text) {
   const body = await gql(
@@ -319,8 +345,24 @@ async function main () {
   }
 
   const result = await createPost(title, text)
+  const itemId = result?.item?.id
   console.log('Post created:', JSON.stringify(result, null, 2))
   console.log(`View at: ${SN_URL}/~/${SUB}`)
+
+  if (itemId) {
+    console.log('Checking for previously pinned items...')
+    const pins = await fetchPins(SUB)
+    const seriesPins = pins.filter(pin => pin.title?.startsWith(TITLE_PREFIX))
+    for (const pin of seriesPins) {
+      if (pin.id !== itemId) {
+        console.log(`Unpinning previous series item ${pin.id}...`)
+        await togglePin(pin.id)
+      }
+    }
+    console.log(`Pinning new item ${itemId}...`)
+    await togglePin(itemId)
+    console.log('Pin complete')
+  }
 }
 
 main().catch(err => {
