@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
 import { nip19 } from 'nostr-tools'
+import { relayInit } from 'nostr-tools/relay'
+import fs from 'fs'
 
 const SN_URL = 'https://stacker.news'
 const NOSTR_SEC = process.env.NOSTR_SEC
@@ -29,6 +31,10 @@ if (!NOSTR_SEC) {
   process.exit(1)
 }
 
+const STATE_FILE = 'state.json'
+const NOSTR_RELAYS = ['wss://relay.damus.io']
+const SALOON_KEYWORD = 'saloon'
+
 // --- Helpers ---
 
 function pickRandomImage () {
@@ -43,6 +49,104 @@ function formatNames (names) {
   return `${tagged.slice(0, -1).join(', ')}, and ${tagged[tagged.length - 1]}`
 }
 
+// --- State persistence ---
+
+function readState () {
+  try {
+    if (fs.existsSync(STATE_FILE)) {
+      return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'))
+    }
+  } catch (e) {
+    console.warn('Could not read state file:', e.message)
+  }
+  return { lastPostId: FIRST_POST_ID }
+}
+
+function saveState (state) {
+  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2) + '\n')
+  console.log(`State saved: ${JSON.stringify(state)}`)
+}
+
+function extractImageUrl (imageMd) {
+  const match = imageMd.match(/\]\(([^)]+)\)/)
+  return match ? match[1] : null
+}
+
+// --- Nostr publish ---
+
+async function publishNostrNote (title, imageMd, itemUrl) {
+  const imageUrl = extractImageUrl(imageMd)
+  const content = `${title}\n\n${itemUrl}`
+
+  const { type, data } = nip19.decode(NOSTR_SEC)
+  if (type !== 'nsec') throw new Error('Invalid nsec')
+  const secretKey = data
+  const pubkey = getPublicKey(secretKey)
+
+  const tags = [
+    ['t', 'design'],
+    ['r', itemUrl]
+  ]
+  if (imageUrl) {
+    tags.push(['image', imageUrl])
+  }
+
+  const event = finalizeEvent({
+    kind: 1,
+    created_at: Math.floor(Date.now() / 1000),
+    tags,
+    content
+  }, secretKey)
+
+  for (const relayUrl of NOSTR_RELAYS) {
+    try {
+      const relay = relayInit(relayUrl)
+      await relay.connect()
+      await relay.publish(event)
+      await relay.close()
+      console.log(`Nostr note published to ${relayUrl}`)
+    } catch (e) {
+      console.warn(`Failed to publish to ${relayUrl}:`, e.message)
+    }
+  }
+}
+
+// --- Saloon helpers ---
+
+async function findSaloonPostId () {
+  const body = await gql(
+    `query items($sub: String) {
+      items(sub: $sub, limit: 1) {
+        pins { id, title }
+      }
+    }`,
+    { sub: 'LIT' },
+    'findSaloon'
+  )
+  const pins = body?.data?.items?.pins || []
+  const saloon = pins.find(p => p.title?.toLowerCase().includes(SALOON_KEYWORD))
+  if (!saloon) {
+    console.warn('Saloon post not found in LIT pins')
+    return null
+  }
+  console.log(`Found Saloon: id=${saloon.id}, title="${saloon.title}"`)
+  return saloon.id
+}
+
+async function commentOnSaloon (saloonId, text) {
+  const body = await gql(
+    `mutation upsertComment($parentId: ID!, $text: String) {
+      upsertComment(parentId: $parentId, text: $text) { id }
+    }`,
+    { parentId: saloonId, text },
+    'upsertComment'
+  )
+  if (body?.errors) {
+    throw new Error('Saloon comment failed: ' + JSON.stringify(body.errors))
+  }
+  console.log(`Commented on Saloon: comment id=${body?.data?.upsertComment?.id}`)
+}
+
 // --- Post content ---
 
 function buildText (prevItemId, userNames, imageMd) {
@@ -53,9 +157,9 @@ function buildText (prevItemId, userNames, imageMd) {
   }
 
   parts.push(
-    'This post is part of a series. It is meant to be a place for stackers to discuss creative projects they have been working on or ideas they are aiming to build. Regardless of your project being personal, professional, physical, digital, or even simply an idea to brainstorm together.',
+    'This post is part of a series. It is meant to be a place for stackers to discuss creative projects they have been working on, or ideas they are aiming to build.  Regardless of your project being personal, professional, physical, digital, or even simply an idea to brainstorm together.',
     '',
-    'If you have any creative projects or ideas that you have been working on or want to eventually work on... This is a place for discussing those, gathering initial feedback and feeling more energetic about bringing it to the next level.'
+    'If you have any creative projects or ideas that you have been working on or want to eventually work on... This is a place for discussing those, gather initial feedback and feel more energetic on bringing it to the next level.'
   )
 
   if (userNames.length > 0) {
@@ -202,41 +306,9 @@ async function fetchMe () {
   return name
 }
 
-// --- Step 6: Find all previous posts ---
+// (previous post tracked via state.json)
 
-async function getPreviousPosts (name) {
-  console.log(`Querying posts for user @${name}...`)
-  const body = await gql(
-    `query items($name: String) {
-      items(name: $name, sort: "user", limit: 200) {
-        items { title, id }
-      }
-    }`,
-    { name },
-    'items'
-  )
-  if (!body?.data?.items) {
-    console.error('Unexpected GraphQL response in getPreviousPosts:', JSON.stringify(body, null, 2))
-    return []
-  }
-  const items = body.data.items.items || []
-  console.log(`Fetched ${items.length} items total`)
-  const escaped = TITLE_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regex = new RegExp(`^${escaped}\\s+#(\\d+)$`)
-  const matching = items.filter(item => regex.test(item.title))
-  console.log(`Found ${matching.length} matching series posts`)
-  matching.sort((a, b) => {
-    const numA = parseInt(a.title.match(regex)[1], 10)
-    const numB = parseInt(b.title.match(regex)[1], 10)
-    return numB - numA
-  })
-  if (matching.length > 0) {
-    console.log(`Latest series post: #${matching[0].title.match(regex)[1]} (id ${matching[0].id})`)
-  }
-  return matching
-}
-
-// --- Step 7: Fetch participants from previous post ---
+// --- Step 6: Fetch participants from previous post ---
 
 async function fetchParticipants (itemId) {
   const body = await gql(
@@ -261,7 +333,7 @@ async function fetchParticipants (itemId) {
   return { userNames }
 }
 
-// --- Step 8: Pin/unpin in territory ---
+// --- Step 7: Pin/unpin in territory ---
 
 async function fetchPins (subName) {
   const body = await gql(
@@ -287,14 +359,13 @@ async function togglePin (itemId) {
   }
 }
 
-// --- Step 9: Create the post ---
+// --- Step 8: Create the post ---
 
 async function createPost (title, text) {
   const body = await gql(
     `mutation upsertDiscussion($title: String!, $text: String, $subNames: [String!]) {
       upsertDiscussion(title: $title, text: $text, subNames: $subNames) {
         id
-        item { id }
       }
     }`,
     { title, text, subNames: [SUB] },
@@ -320,13 +391,9 @@ async function main () {
   console.log('Fetching user info...')
   const name = await fetchMe()
 
-  console.log('Finding all previous posts...')
-  const posts = await getPreviousPosts(name)
-
-  const escaped = TITLE_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const regex = new RegExp(`^${escaped}\\s+#(\\d+)$`)
-  const issueNum = posts.length > 0 ? parseInt(posts[0].title.match(regex)[1], 10) : 0
-  const prevItemId = posts.length > 0 ? posts[0].id : FIRST_POST_ID
+  const state = readState()
+  const prevItemId = state.lastPostId
+  console.log(`Previous post ID: ${prevItemId}`)
 
   const title = TITLE_PREFIX
 
@@ -359,24 +426,50 @@ async function main () {
   }
 
   const result = await createPost(title, text)
-  const itemId = result?.item?.id
+  const itemId = result?.id
   console.log('Post created:', JSON.stringify(result, null, 2))
   console.log(`View at: ${SN_URL}/~/${SUB}`)
 
-  if (itemId) {
-    console.log('Checking for previously pinned items...')
-    const pins = await fetchPins(SUB)
-    const seriesPins = pins.filter(pin => pin.title?.startsWith(TITLE_PREFIX))
-    for (const pin of seriesPins) {
-      if (pin.id !== itemId) {
-        console.log(`Unpinning previous series item ${pin.id}...`)
-        await togglePin(pin.id)
-      }
-    }
-    console.log(`Pinning new item ${itemId}...`)
-    await togglePin(itemId)
-    console.log('Pin complete')
+  if (!itemId) {
+    console.error('No item ID returned from createPost')
+    return
   }
+
+  saveState({ lastPostId: itemId })
+
+  console.log('Checking for previously pinned items...')
+  const pins = await fetchPins(SUB)
+  const seriesPins = pins.filter(pin => pin.title?.startsWith(TITLE_PREFIX))
+  for (const pin of seriesPins) {
+    if (pin.id !== itemId) {
+      console.log(`Unpinning previous series item ${pin.id}...`)
+      await togglePin(pin.id)
+    }
+  }
+  console.log(`Pinning new item ${itemId}...`)
+  await togglePin(itemId)
+  console.log('Pin complete')
+
+  const itemUrl = `${SN_URL}/items/${itemId}/r/Design_r`
+  console.log('Publishing Nostr note...')
+  try {
+    await publishNostrNote(title, imageMd, itemUrl)
+  } catch (e) {
+    console.warn('Nostr publish failed:', e.message)
+  }
+
+  console.log('Finding Stacker\'s Saloon...')
+  try {
+    const saloonId = await findSaloonPostId()
+    if (saloonId) {
+      const saloonText = `${title}\n\n${itemUrl}`
+      await commentOnSaloon(saloonId, saloonText)
+    }
+  } catch (e) {
+    console.warn('Saloon comment failed:', e.message)
+  }
+
+  console.log('Done')
 }
 
 main().catch(err => {
