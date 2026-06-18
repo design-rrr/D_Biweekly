@@ -208,7 +208,7 @@ async function getPreviousPosts (name) {
   console.log(`Querying posts for user @${name}...`)
   const body = await gql(
     `query items($name: String) {
-      items(name: $name, sort: user, limit: 50) {
+      items(name: $name, sort: "user", limit: 50) {
         items { title, id }
       }
     }`,
@@ -291,13 +291,13 @@ async function togglePin (itemId) {
 
 async function createPost (title, text) {
   const body = await gql(
-    `mutation upsertDiscussion($title: String!, $text: String, $sub: String) {
-      upsertDiscussion(title: $title, text: $text, sub: $sub) {
+    `mutation upsertDiscussion($title: String!, $text: String, $subNames: [String!]) {
+      upsertDiscussion(title: $title, text: $text, subNames: $subNames) {
         id
         item { id }
       }
     }`,
-    { title, text, sub: SUB },
+    { title, text, subNames: [SUB] },
     'upsertDiscussion'
   )
   if (body?.errors) {
