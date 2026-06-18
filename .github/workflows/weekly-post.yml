@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 11 * * 4'
   workflow_dispatch:
+    inputs:
+      skip-delay:
+        description: 'Skip random delay before posting'
+        type: boolean
+        default: false
 
 jobs:
   post:
@@ -24,7 +29,7 @@ jobs:
             echo "RUN_BOT=false" >> $GITHUB_ENV
           fi
       - name: Random delay (0-21 min)
-        if: env.RUN_BOT == 'true'
+        if: env.RUN_BOT == 'true' && inputs.skip-delay != 'true'
         run: sleep $(( RANDOM % 1260 ))
       - name: Run bot
         if: env.RUN_BOT == 'true'
