@@ -13,6 +13,8 @@ on:
 jobs:
   post:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,3 +40,11 @@ jobs:
         run: node bot.mjs
         env:
           NOSTR_SEC: ${{ secrets.NOSTR_SEC }}
+      - name: Commit state.json
+        if: env.RUN_BOT == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add state.json
+          git diff --cached --quiet || git commit -m "update post state"
+          git push
