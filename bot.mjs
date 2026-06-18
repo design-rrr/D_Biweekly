@@ -53,9 +53,9 @@ function buildText (prevItemId, userNames, imageMd) {
   }
 
   parts.push(
-    'This post is part of a series. It is meant to be a place for stackers to discuss creative projects they have been working on, or ideas they are aiming to build.  Regardless of your project being personal, professional, physical, digital, or even simply an idea to brainstorm together.',
+    'This post is part of a series. It is meant to be a place for stackers to discuss creative projects they have been working on or ideas they are aiming to build. Regardless of your project being personal, professional, physical, digital, or even simply an idea to brainstorm together.',
     '',
-    'If you have any creative projects or ideas that you have been working on or want to eventually work on... This is a place for discussing those, gather initial feedback and feel more energetic on bringing it to the next level.'
+    'If you have any creative projects or ideas that you have been working on or want to eventually work on... This is a place for discussing those, gathering initial feedback and feeling more energetic about bringing it to the next level.'
   )
 
   if (userNames.length > 0) {
