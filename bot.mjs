@@ -4,7 +4,7 @@ import { nip19 } from 'nostr-tools'
 
 const SN_URL = 'https://stacker.news'
 const NOSTR_SEC = process.env.NOSTR_SEC
-const SUB = 'design'
+const SUB = 'Design'
 const TITLE_PREFIX = 'What creative ideas have you been rambling on?'
 
 const IMAGES = [
@@ -59,7 +59,7 @@ function buildText (prevItemId, userNames, imageMd) {
   )
 
   if (userNames.length > 0) {
-    const previousLink = `${SN_URL}/items/${prevItemId}/r/deSign_r`
+    const previousLink = `${SN_URL}/items/${prevItemId}/r/Design_r`
     parts.push(
       '',
       `Thanks ${formatNames(userNames)} for joining and sharing your ideas in the [previous edition](${previousLink}). How are you all doing with your projects? Any update?`
@@ -208,7 +208,7 @@ async function getPreviousPosts (name) {
   console.log(`Querying posts for user @${name}...`)
   const body = await gql(
     `query items($name: String) {
-      items(name: $name, sort: "user", limit: 50) {
+      items(name: $name, sort: "user", limit: 200) {
         items { title, id }
       }
     }`,
