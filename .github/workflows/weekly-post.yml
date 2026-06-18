@@ -29,10 +29,10 @@ jobs:
             echo "RUN_BOT=false" >> $GITHUB_ENV
           fi
       - name: Resolve skip-delay flag
-        run: echo "SKIP_DELAY=${{ inputs.skip-delay == 'true' && 'true' || '' }}" >> $GITHUB_ENV
+        run: echo "SKIP_DELAY=${{ inputs.skip-delay == true && 'true' || '' }}" >> $GITHUB_ENV
       - name: Random delay (0-21 min)
         if: env.RUN_BOT == 'true' && env.SKIP_DELAY != 'true'
-        run: sleep $(( RANDOM % 60 ))
+        run: sleep $(( RANDOM % 1260 ))
       - name: Run bot
         if: env.RUN_BOT == 'true'
         run: node bot.mjs
