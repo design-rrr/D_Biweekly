@@ -12,7 +12,7 @@ const IMAGES = [
   '![True happiness is not attained through self-gratification, but through fidelity to a worthy purpose. - Helen Keller](https://m.stacker.news/119126)',
   '![MaindBlowing](https://m.stacker.news/97749)',
   '![The Creative Adult is the Child Who Survived - Ursula Le Guin](https://m.stacker.news/116903)',
-  `![I don't care that they stole my idea. I care that they don't have any of their own - Nikola Tesla](https://m.stacker.news/114266)`,
+  `![I don't care that they stole my idea . . I care that they don't have any of their own - Nikola Tesla](https://m.stacker.news/114266)`,
   '![The best way to predict your future is to create it. - Abraham Lincoln](https://m.stacker.news/112173)',
   '![Creativity is Intelligence Having Fun - Albert Einstein](https://m.stacker.news/99470)',
   '![Tune on Awe, Find the Creative Vocabulary to Express your Work - Rick Rubin](https://m.stacker.news/103510)',
@@ -115,7 +115,11 @@ async function gql (query, variables, operationName) {
     headers: { 'content-type': 'application/json' },
     body
   })
-  return await res.json()
+  const json = await res.json()
+  if (json.errors) {
+    console.error(`GraphQL error in ${operationName}:`, JSON.stringify(json.errors, null, 2))
+  }
+  return json
 }
 
 // --- Step 1: Create auth challenge ---
@@ -201,6 +205,7 @@ async function fetchMe () {
 // --- Step 6: Find all previous posts ---
 
 async function getPreviousPosts (name) {
+  console.log(`Querying posts for user @${name}...`)
   const body = await gql(
     `query items($name: String) {
       items(name: $name, sort: user, limit: 50) {
@@ -210,15 +215,24 @@ async function getPreviousPosts (name) {
     { name },
     'items'
   )
-  const items = body?.data?.items?.items || []
+  if (!body?.data?.items) {
+    console.error('Unexpected GraphQL response in getPreviousPosts:', JSON.stringify(body, null, 2))
+    return []
+  }
+  const items = body.data.items.items || []
+  console.log(`Fetched ${items.length} items total`)
   const escaped = TITLE_PREFIX.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const regex = new RegExp(`^${escaped}\\s+#(\\d+)$`)
   const matching = items.filter(item => regex.test(item.title))
+  console.log(`Found ${matching.length} matching series posts`)
   matching.sort((a, b) => {
     const numA = parseInt(a.title.match(regex)[1], 10)
     const numB = parseInt(b.title.match(regex)[1], 10)
     return numB - numA
   })
+  if (matching.length > 0) {
+    console.log(`Latest series post: #${matching[0].title.match(regex)[1]} (id ${matching[0].id})`)
+  }
   return matching
 }
 
