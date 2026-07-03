@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import { finalizeEvent, getPublicKey } from 'nostr-tools/pure'
 import { nip19 } from 'nostr-tools'
-import { relayInit } from 'nostr-tools/relay'
 import fs from 'fs'
 
 const SN_URL = 'https://stacker.news'
@@ -81,7 +80,6 @@ async function publishNostrNote (title, imageMd, itemUrl) {
   const { type, data } = nip19.decode(NOSTR_SEC)
   if (type !== 'nsec') throw new Error('Invalid nsec')
   const secretKey = data
-  const pubkey = getPublicKey(secretKey)
 
   const tags = [
     ['t', 'design'],
@@ -100,10 +98,28 @@ async function publishNostrNote (title, imageMd, itemUrl) {
 
   for (const relayUrl of NOSTR_RELAYS) {
     try {
-      const relay = relayInit(relayUrl)
-      await relay.connect()
-      await relay.publish(event)
-      await relay.close()
+      await new Promise((resolve, reject) => {
+        const ws = new WebSocket(relayUrl)
+        let settled = false
+        const finish = (err) => {
+          if (settled) return
+          settled = true
+          ws.close()
+          if (err) reject(err)
+          else resolve()
+        }
+        ws.onopen = () => ws.send(JSON.stringify(['EVENT', event]))
+        ws.onmessage = (msg) => {
+          try {
+            const [type, id, ok, message] = JSON.parse(msg.data)
+            if (type === 'OK' && id === event.id) {
+              finish(ok ? null : new Error(message || 'relay rejected'))
+            }
+          } catch (e) { /* ignore */ }
+        }
+        ws.onerror = () => finish(new Error('WebSocket error'))
+        ws.onclose = () => finish(new Error('closed before OK'))
+      })
       console.log(`Nostr note published to ${relayUrl}`)
     } catch (e) {
       console.warn(`Failed to publish to ${relayUrl}:`, e.message)
