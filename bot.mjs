@@ -453,18 +453,22 @@ async function main () {
 
   saveState({ lastPostId: itemId })
 
-  console.log('Checking for previously pinned items...')
-  const pins = await fetchPins(SUB)
-  const seriesPins = pins.filter(pin => pin.title?.startsWith(TITLE_PREFIX))
-  for (const pin of seriesPins) {
-    if (pin.id !== itemId) {
-      console.log(`Unpinning previous series item ${pin.id}...`)
-      await togglePin(pin.id)
+  try {
+    console.log('Checking for previously pinned items...')
+    const pins = await fetchPins(SUB)
+    const seriesPins = pins.filter(pin => pin.title?.startsWith(TITLE_PREFIX))
+    for (const pin of seriesPins) {
+      if (pin.id !== itemId) {
+        console.log(`Unpinning previous series item ${pin.id}...`)
+        await togglePin(pin.id)
+      }
     }
+    console.log(`Pinning new item ${itemId}...`)
+    await togglePin(itemId)
+    console.log('Pin complete')
+  } catch (e) {
+    console.warn('Pin operation failed:', e.message)
   }
-  console.log(`Pinning new item ${itemId}...`)
-  await togglePin(itemId)
-  console.log('Pin complete')
 
   const itemUrl = `${SN_URL}/items/${itemId}/r/Design_r`
   console.log('Publishing Nostr note...')
