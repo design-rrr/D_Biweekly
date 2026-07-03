@@ -32,7 +32,7 @@ jobs:
           fi
       - name: Resolve skip-delay flag
         run: echo "SKIP_DELAY=${{ inputs.skip-delay == true && 'true' || '' }}" >> $GITHUB_ENV
-      - name: Random delay (0-21 min)
+      - name: Random delay (0-6 min)
         if: env.RUN_BOT == 'true' && env.SKIP_DELAY != 'true'
         run: sleep $(( RANDOM % 360 ))
       - name: Run bot
