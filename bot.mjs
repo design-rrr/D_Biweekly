@@ -393,6 +393,25 @@ async function createPost (title, text) {
   return body?.data?.upsertDiscussion
 }
 
+// --- Step 9: Resolve real Item ID after creation ---
+
+async function findLatestItemId (name) {
+  const body = await gql(
+    `query items($name: String) {
+      items(name: $name, sort: "user", limit: 5) {
+        items { id, title }
+      }
+    }`,
+    { name },
+    'findLatestItemId'
+  )
+  const items = body?.data?.items?.items || []
+  const match = items.find(item => item.title?.startsWith(TITLE_PREFIX))
+  if (!match) throw new Error('Could not find our newly created item')
+  console.log(`Resolved Item ID: ${match.id} — "${match.title}"`)
+  return match.id
+}
+
 // --- Main ---
 
 async function main () {
@@ -442,15 +461,10 @@ async function main () {
   }
 
   const result = await createPost(title, text)
-  const itemId = result?.id
   console.log('Post created:', JSON.stringify(result, null, 2))
   console.log(`View at: ${SN_URL}/~/${SUB}`)
 
-  if (!itemId) {
-    console.error('No item ID returned from createPost')
-    return
-  }
-
+  const itemId = await findLatestItemId(name)
   saveState({ lastPostId: itemId })
 
   try {
