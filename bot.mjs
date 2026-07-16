@@ -403,7 +403,7 @@ async function findLatestItemId (name) {
       }
     }`,
     { name },
-    'findLatestItemId'
+    'items'
   )
   const items = body?.data?.items?.items || []
   const match = items.find(item => item.title?.startsWith(TITLE_PREFIX))
